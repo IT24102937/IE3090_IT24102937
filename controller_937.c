@@ -9,6 +9,9 @@
 #define PORT 9410
 #define BUFFER_SIZE 1024
 
+#define SESSION_ID "SID:7392"
+#define AUTH_TOKEN "OPS-2937"
+
 int main() {
 
     int sock;
@@ -21,25 +24,28 @@ int main() {
     sock = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sock < 0) {
+
         perror("Socket creation failed");
         return 1;
     }
 
     printf("[CONTROLLER] TCP socket created.\n");
 
-    /* Configure server address */
+    /* Configure Agent address */
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
 
-    if (inet_pton(AF_INET, SERVER_IP,
+    if (inet_pton(AF_INET,
+                  SERVER_IP,
                   &server_addr.sin_addr) <= 0) {
 
         perror("Invalid server address");
         close(sock);
+
         return 1;
     }
 
-    /* Connect to Agent */
+    /* Connect */
     printf("[CONTROLLER] Connecting to Agent...\n");
 
     if (connect(sock,
@@ -48,22 +54,30 @@ int main() {
 
         perror("Connection failed");
         close(sock);
+
         return 1;
     }
 
     printf("[CONTROLLER] Connected to Agent.\n");
 
-    /* Send test message */
-    char message[] = "Hello from Controller";
+    /* Create authentication message */
+    char auth_message[BUFFER_SIZE];
 
+    snprintf(auth_message,
+             BUFFER_SIZE,
+             "AUTH %s %s",
+             SESSION_ID,
+             AUTH_TOKEN);
+
+    /* Send authentication */
     send(sock,
-         message,
-         strlen(message),
+         auth_message,
+         strlen(auth_message),
          0);
 
-    printf("[CONTROLLER] Message sent.\n");
+    printf("[CONTROLLER] Authentication request sent.\n");
 
-    /* Receive Agent response */
+    /* Receive authentication response */
     memset(buffer, 0, BUFFER_SIZE);
 
     int bytes_received = recv(sock,
@@ -77,10 +91,11 @@ int main() {
 
     } else {
 
-        printf("[CONTROLLER] Agent response: %s\n", buffer);
+        printf("[CONTROLLER] Agent response: %s\n",
+               buffer);
     }
 
-    /* Close connection */
+    /* Close */
     close(sock);
 
     printf("[CONTROLLER] Connection closed.\n");
