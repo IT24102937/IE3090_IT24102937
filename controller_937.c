@@ -12,6 +12,7 @@
 #define SESSION_ID "SID:7392"
 #define AUTH_TOKEN "OPS-2937"
 
+
 int main() {
 
     int sock;
@@ -20,39 +21,52 @@ int main() {
 
     char buffer[BUFFER_SIZE];
 
+
     /* Create TCP socket */
+
     sock = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sock < 0) {
 
         perror("Socket creation failed");
+
         return 1;
     }
 
     printf("[CONTROLLER] TCP socket created.\n");
 
-    /* Configure Agent address */
+
+    /* Configure server address */
+
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
+
+
+    /* Convert IP address */
 
     if (inet_pton(AF_INET,
                   SERVER_IP,
                   &server_addr.sin_addr) <= 0) {
 
         perror("Invalid server address");
+
         close(sock);
 
         return 1;
     }
 
-    /* Connect */
+
+    /* Connect to Agent */
+
     printf("[CONTROLLER] Connecting to Agent...\n");
+
 
     if (connect(sock,
                 (struct sockaddr *)&server_addr,
                 sizeof(server_addr)) < 0) {
 
         perror("Connection failed");
+
         close(sock);
 
         return 1;
@@ -60,7 +74,9 @@ int main() {
 
     printf("[CONTROLLER] Connected to Agent.\n");
 
+
     /* Create authentication message */
+
     char auth_message[BUFFER_SIZE];
 
     snprintf(auth_message,
@@ -69,7 +85,9 @@ int main() {
              SESSION_ID,
              AUTH_TOKEN);
 
+
     /* Send authentication */
+
     send(sock,
          auth_message,
          strlen(auth_message),
@@ -77,7 +95,9 @@ int main() {
 
     printf("[CONTROLLER] Authentication request sent.\n");
 
+
     /* Receive authentication response */
+
     memset(buffer, 0, BUFFER_SIZE);
 
     int bytes_received = recv(sock,
@@ -89,16 +109,59 @@ int main() {
 
         perror("Receive failed");
 
-    } else {
+        close(sock);
 
-        printf("[CONTROLLER] Agent response: %s\n",
-               buffer);
+        return 1;
     }
 
-    /* Close */
+    printf("[CONTROLLER] Agent response: %s\n", buffer);
+
+
+    /* Continue only if authentication successful */
+
+    if (strcmp(buffer, "AUTH OK") == 0) {
+
+        /*
+         * Send SYSINFO command
+         */
+
+        char command[] = "LISTPROC";
+
+        send(sock,
+             command,
+             strlen(command),
+             0);
+
+        printf("[CONTROLLER] Command sent: %s\n", command);
+
+
+        /* Receive SYSINFO */
+
+        memset(buffer, 0, BUFFER_SIZE);
+
+        bytes_received = recv(sock,
+                              buffer,
+                              BUFFER_SIZE - 1,
+                              0);
+
+        if (bytes_received < 0) {
+
+            perror("Receive failed");
+
+        } else {
+
+            printf("\n[CONTROLLER] SYSINFO:\n");
+            printf("%s\n", buffer);
+        }
+    }
+
+
+    /* Close connection */
+
     close(sock);
 
     printf("[CONTROLLER] Connection closed.\n");
+
 
     return 0;
 }
