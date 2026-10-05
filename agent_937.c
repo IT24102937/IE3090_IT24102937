@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #define TCP_PORT 9410
 #define UDP_PORT 9411
@@ -15,6 +16,32 @@
 #define AUTH_TOKEN "OPS-2937"
 
 #define STORAGE_PATH "./agentfiles/IT24102937/"
+
+void write_log(const char *message)
+{
+    FILE *log_file;
+    time_t now;
+    struct tm *time_info;
+    char timestamp[30];
+
+    time(&now);
+    time_info = localtime(&now);
+
+    strftime(timestamp, sizeof(timestamp),
+             "%Y-%m-%d %H:%M:%S", time_info);
+
+    log_file = fopen("remoteops_IT24102937.log", "a");
+
+    if (log_file == NULL)
+    {
+        perror("[LOG ERROR]");
+        return;
+    }
+
+    fprintf(log_file, "[%s] %s\n", timestamp, message);
+
+    fclose(log_file);
+}
 
 /* Send all TCP data */
 int send_all(int socket_fd, const char *data, size_t length)
@@ -99,6 +126,7 @@ void execute_command(int client_fd, const char *command)
 
     if (!is_allowed_command(command))
     {
+        write_log("EXEC DENIED");
         send_all(client_fd, "EXEC DENIED", 11);
         return;
     }
@@ -269,7 +297,8 @@ void udp_monitor(void)
 
         if (strcmp(buffer, "MONITOR") == 0)
         {
-            char hostname[256] = "Unknown";
+           write_log("UDP MONITOR REQUEST");
+           char hostname[256] = "Unknown";
 
             gethostname(hostname, sizeof(hostname) - 1);
 
@@ -314,6 +343,7 @@ void udp_monitor(void)
 
 int main(void)
 {
+    write_log("Agent started");
     int server_fd;
     int client_fd;
 
@@ -428,10 +458,12 @@ int main(void)
 
             if (strcmp(buffer, expected) == 0)
             {
+            write_log("AUTH SUCCESS");
                 send_all(client_fd, "AUTH OK", 7);
             }
             else
             {
+                write_log("AUTH FAILED");
                 send_all(client_fd, "AUTH FAILED", 11);
                 close(client_fd);
                 continue;
@@ -455,18 +487,22 @@ int main(void)
 
         if (strcmp(buffer, "SYSINFO") == 0)
         {
+            write_log("SYSINFO REQUEST");
             send_sysinfo(client_fd);
         }
         else if (strcmp(buffer, "LISTPROC") == 0)
         {
+            write_log("LISTPROC REQUEST");
             send_listproc(client_fd);
         }
         else if (strncmp(buffer, "EXEC ", 5) == 0)
         {
+            write_log("EXEC REQUEST");
             execute_command(client_fd, buffer + 5);
         }
         else if (strncmp(buffer, "PUT ", 4) == 0)
         {
+            write_log("PUT REQUEST");
             char filename[256];
             long filesize;
 
@@ -486,6 +522,7 @@ int main(void)
         }
         else if (strncmp(buffer, "GET ", 4) == 0)
         {
+         write_log("GET REQUEST");
             send_file(client_fd, buffer + 4);
         }
         else
