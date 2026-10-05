@@ -22,7 +22,7 @@ int main() {
     char buffer[BUFFER_SIZE];
 
 
-    /* Create TCP socket */
+    /* Create socket */
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -36,13 +36,11 @@ int main() {
     printf("[CONTROLLER] TCP socket created.\n");
 
 
-    /* Configure server address */
+    /* Server address */
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
 
-
-    /* Convert IP address */
 
     if (inet_pton(AF_INET,
                   SERVER_IP,
@@ -56,7 +54,7 @@ int main() {
     }
 
 
-    /* Connect to Agent */
+    /* Connect */
 
     printf("[CONTROLLER] Connecting to Agent...\n");
 
@@ -75,7 +73,7 @@ int main() {
     printf("[CONTROLLER] Connected to Agent.\n");
 
 
-    /* Create authentication message */
+    /* Authentication */
 
     char auth_message[BUFFER_SIZE];
 
@@ -86,8 +84,6 @@ int main() {
              AUTH_TOKEN);
 
 
-    /* Send authentication */
-
     send(sock,
          auth_message,
          strlen(auth_message),
@@ -96,7 +92,7 @@ int main() {
     printf("[CONTROLLER] Authentication request sent.\n");
 
 
-    /* Receive authentication response */
+    /* Receive AUTH response */
 
     memset(buffer, 0, BUFFER_SIZE);
 
@@ -117,15 +113,17 @@ int main() {
     printf("[CONTROLLER] Agent response: %s\n", buffer);
 
 
-    /* Continue only if authentication successful */
+    /* Continue after authentication */
 
     if (strcmp(buffer, "AUTH OK") == 0) {
 
+
         /*
-         * Send SYSINFO command
+         * EXEC allowed command
          */
 
-        char command[] = "LISTPROC";
+        char command[] = "EXEC ls";
+
 
         send(sock,
              command,
@@ -135,7 +133,7 @@ int main() {
         printf("[CONTROLLER] Command sent: %s\n", command);
 
 
-        /* Receive SYSINFO */
+        /* Receive result */
 
         memset(buffer, 0, BUFFER_SIZE);
 
@@ -150,13 +148,13 @@ int main() {
 
         } else {
 
-            printf("\n[CONTROLLER] SYSINFO:\n");
+            printf("\n[CONTROLLER] EXEC result:\n");
             printf("%s\n", buffer);
         }
     }
 
 
-    /* Close connection */
+    /* Close */
 
     close(sock);
 
@@ -164,4 +162,4 @@ int main() {
 
 
     return 0;
-}
+} 

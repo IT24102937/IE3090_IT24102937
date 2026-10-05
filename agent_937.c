@@ -74,6 +74,75 @@ void send_listproc(int client_fd) {
 }
 
 
+/* Check whether a command is allowed */
+
+int is_allowed_command(const char *command) {
+
+    if (strcmp(command, "date") == 0) {
+        return 1;
+    }
+
+    if (strcmp(command, "whoami") == 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
+
+/* Execute an allowed command */
+
+void execute_command(int client_fd, const char *command) {
+
+    FILE *fp;
+    char buffer[4096];
+    char line[512];
+
+    memset(buffer, 0, sizeof(buffer));
+
+    char command_to_run[512];
+
+    snprintf(command_to_run,
+             sizeof(command_to_run),
+             "%s",
+             command);
+
+    fp = popen(command_to_run, "r");
+
+    if (fp == NULL) {
+
+        char error_msg[] = "EXEC ERROR";
+
+        send(client_fd,
+             error_msg,
+             strlen(error_msg),
+             0);
+
+        return;
+    }
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+
+        if (strlen(buffer) + strlen(line) < sizeof(buffer) - 1) {
+
+            strcat(buffer, line);
+        }
+    }
+
+    pclose(fp);
+
+    if (strlen(buffer) == 0) {
+
+        strcpy(buffer, "Command executed successfully.");
+    }
+
+    send(client_fd,
+         buffer,
+         strlen(buffer),
+         0);
+}
+
+
 int main() {
 
     int server_fd;
@@ -92,7 +161,9 @@ int main() {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (server_fd < 0) {
+
         perror("Socket creation failed");
+
         return 1;
     }
 
@@ -136,11 +207,11 @@ int main() {
     printf("[AGENT] Waiting for Controller...\n");
 
 
-    /* Accept controller connection */
+    /* Accept Controller */
 
     client_fd = accept(server_fd,
-                        (struct sockaddr *)&client_addr,
-                        &client_len);
+                       (struct sockaddr *)&client_addr,
+                       &client_len);
 
     if (client_fd < 0) {
 
@@ -154,7 +225,7 @@ int main() {
     printf("[AGENT] Controller connected.\n");
 
 
-    /* Receive authentication request */
+    /* Receive authentication */
 
     memset(buffer, 0, BUFFER_SIZE);
 
@@ -173,11 +244,10 @@ int main() {
         return 1;
     }
 
-
     printf("[AGENT] Received: %s\n", buffer);
 
 
-    /* Create expected authentication message */
+    /* Expected authentication */
 
     char expected_auth[BUFFER_SIZE];
 
@@ -188,7 +258,7 @@ int main() {
              AUTH_TOKEN);
 
 
-    /* Check authentication */
+    /* Authentication */
 
     if (strcmp(buffer, expected_auth) == 0) {
 
@@ -202,7 +272,7 @@ int main() {
         printf("[AGENT] Authentication successful.\n");
 
 
-        /* Wait for command */
+        /* Receive command */
 
         memset(buffer, 0, BUFFER_SIZE);
 
@@ -216,7 +286,7 @@ int main() {
             printf("[AGENT] Command received: %s\n", buffer);
 
 
-            /* SYSINFO command */
+            /* SYSINFO */
 
             if (strcmp(buffer, "SYSINFO") == 0) {
 
@@ -226,13 +296,42 @@ int main() {
             }
 
 
-            /* LISTPROC command */
+            /* LISTPROC */
 
             else if (strcmp(buffer, "LISTPROC") == 0) {
 
                 send_listproc(client_fd);
 
                 printf("[AGENT] LISTPROC sent.\n");
+            }
+
+
+            /* EXEC */
+
+            else if (strncmp(buffer, "EXEC ", 5) == 0) {
+
+                char *command = buffer + 5;
+
+                printf("[AGENT] EXEC requested: %s\n", command);
+
+
+                if (is_allowed_command(command)) {
+
+                    printf("[AGENT] Command allowed.\n");
+
+                    execute_command(client_fd, command);
+
+                } else {
+
+                    char response[] = "EXEC DENIED";
+
+                    send(client_fd,
+                         response,
+                         strlen(response),
+                         0);
+
+                    printf("[AGENT] Command denied.\n");
+                }
             }
 
 
@@ -269,7 +368,7 @@ int main() {
     }
 
 
-    /* Close connection */
+    /* Close */
 
     close(client_fd);
 
