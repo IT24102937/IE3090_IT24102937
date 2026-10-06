@@ -416,8 +416,12 @@ int main(void)
 
     /* ---------------- TCP LOOP ---------------- */
 
+    /* ---------------- TCP LOOP ---------------- */
+
     while (1)
     {
+        client_len = sizeof(client_addr);
+
         client_fd = accept(
             server_fd,
             (struct sockaddr *)&client_addr,
@@ -429,6 +433,25 @@ int main(void)
             continue;
         }
 
+        pid_t client_pid = fork();
+
+        if (client_pid < 0)
+        {
+            perror("fork");
+            close(client_fd);
+            continue;
+        }
+
+        if (client_pid > 0)
+        {
+            /* Parent process */
+            close(client_fd);
+            continue;
+        }
+
+        /* Child process */
+        close(server_fd);
+
         memset(buffer, 0, sizeof(buffer));
 
         int bytes_received =
@@ -437,7 +460,7 @@ int main(void)
         if (bytes_received <= 0)
         {
             close(client_fd);
-            continue;
+            exit(0);
         }
 
         buffer[bytes_received] = '\0';
@@ -458,7 +481,7 @@ int main(void)
 
             if (strcmp(buffer, expected) == 0)
             {
-            write_log("AUTH SUCCESS");
+                write_log("AUTH SUCCESS");
                 send_all(client_fd, "AUTH OK", 7);
             }
             else
@@ -466,7 +489,7 @@ int main(void)
                 write_log("AUTH FAILED");
                 send_all(client_fd, "AUTH FAILED", 11);
                 close(client_fd);
-                continue;
+                exit(0);
             }
         }
 
@@ -480,7 +503,7 @@ int main(void)
         if (command_bytes <= 0)
         {
             close(client_fd);
-            continue;
+            exit(0);
         }
 
         buffer[command_bytes] = '\0';
@@ -503,6 +526,7 @@ int main(void)
         else if (strncmp(buffer, "PUT ", 4) == 0)
         {
             write_log("PUT REQUEST");
+
             char filename[256];
             long filesize;
 
@@ -522,7 +546,7 @@ int main(void)
         }
         else if (strncmp(buffer, "GET ", 4) == 0)
         {
-         write_log("GET REQUEST");
+            write_log("GET REQUEST");
             send_file(client_fd, buffer + 4);
         }
         else
@@ -532,12 +556,14 @@ int main(void)
                      15);
         }
 
+        printf("[AGENT] Controller connection closed.\n");
+
         close(client_fd);
 
-        printf("[AGENT] Controller connection closed.\n");
+        exit(0);
     }
 
     close(server_fd);
 
-    return 0;
+    return 0;   
 }
